@@ -4,6 +4,7 @@ import atlantafx.base.theme.PrimerDark;
 import com.veriflow.veriflow.database.DatabaseManager;
 import com.veriflow.veriflow.service.AuthService;
 import com.veriflow.veriflow.service.ExternalApiService;
+import com.veriflow.veriflow.service.JmsService;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -21,6 +22,7 @@ public class App extends Application {
     private final DatabaseManager dbManager = new DatabaseManager();
     private final AuthService authService = new AuthService();
     private final ExternalApiService apiService = new ExternalApiService();
+    private final JmsService jmsService = new JmsService();
 
     private Stage primaryStage;
     private BorderPane mainLayout;
@@ -28,6 +30,10 @@ public class App extends Application {
     @Override
     public void start(Stage stage) {
         this.primaryStage = stage;
+
+        jmsService.startBroker();
+
+        authService.setJmsService(jmsService);
 
         Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
 
@@ -244,5 +250,16 @@ public class App extends Application {
         alert.setContentText(content);
         alert.initOwner(primaryStage);
         alert.showAndWait();
+    }
+
+    @Override
+    public void stop() throws Exception {
+        System.out.println("Zamykanie aplikacji...");
+        jmsService.stopBroker();
+        super.stop();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 }

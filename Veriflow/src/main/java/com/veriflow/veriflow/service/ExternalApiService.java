@@ -24,7 +24,6 @@ public class ExternalApiService {
 
         if (response.statusCode() == 200) {
             JSONObject json = new JSONObject(response.body());
-            // Parsowanie JSON: rates[0].mid
             return json.getJSONArray("rates").getJSONObject(0).getDouble("mid");
         } else {
             throw new Exception("Nie znaleziono waluty (Kod 404)");
