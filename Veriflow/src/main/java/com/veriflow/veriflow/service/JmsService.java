@@ -1,52 +1,54 @@
 package com.veriflow.veriflow.service;
 
 import org.apache.activemq.ActiveMQConnectionFactory;
-import org.apache.activemq.broker.BrokerService;
 
 import javax.jms.*;
 
-import static javafx.application.Application.launch;
-
 public class JmsService {
 
-    private BrokerService broker;
     private Connection connection;
     private Session session;
     private MessageProducer producer;
+
+    private static final String BROKER_URL = "tcp://localhost:61616";
     private static final String QUEUE_NAME = "veriflow.2fa.queue";
+
+    private static final String USERNAME = "admin";
+    private static final String PASSWORD = "admin";
 
     public void startBroker() {
         try {
-            broker = new BrokerService();
-            broker.setPersistent(false);
-            broker.addConnector("vm://localhost");
-            broker.start();
-            System.out.println("✅ [JMS] Broker ActiveMQ wystartował.");
+            System.out.println("⏳ [JMS] Łączenie z zewnętrznym brokerem ActiveMQ...");
 
-            initializeJmsClient();
+            ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(USERNAME, PASSWORD, BROKER_URL);
+
+            connectionFactory.setTrustAllPackages(true);
+
+            connection = connectionFactory.createConnection();
+            connection.start();
+
+            session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+            Destination destination = session.createQueue(QUEUE_NAME);
+
+            producer = session.createProducer(destination);
+
+            System.out.println("✅ [JMS] Połączono z ActiveMQ na porcie 61616.");
+
             startConsumer();
 
-        } catch (Exception e) {
+        } catch (JMSException e) {
+            System.err.println("❌ BŁĄD: Nie można połączyć się z Dockerem ActiveMQ!");
+            System.err.println("👉 Upewnij się, że wpisałeś: 'docker run -d -p 61616:61616 ...'");
             e.printStackTrace();
         }
     }
 
-    private void initializeJmsClient() throws JMSException {
-        ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("vm://localhost");
-        connection = connectionFactory.createConnection();
-        connection.start();
-
-        session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        Destination destination = session.createQueue(QUEUE_NAME);
-
-        producer = session.createProducer(destination);
-    }
-
     public void sendMessage(String text) {
         try {
+            if (session == null) return;
             TextMessage message = session.createTextMessage(text);
             producer.send(message);
-            System.out.println("📤 [JMS Producer] Wysłano do kolejki: " + text);
+            System.out.println("📤 [JMS Producer] Wysłano: " + text);
         } catch (JMSException e) {
             e.printStackTrace();
         }
@@ -61,9 +63,11 @@ public class JmsService {
                 try {
                     String text = ((TextMessage) message).getText();
 
-                    System.out.println("📥 [JMS Consumer] Odebrano zlecenie: " + text);
-                    Thread.sleep(2000); // Udajemy, że wysyłka trwa 2 sekundy
-                    System.out.println("🚀 [SMS SERVICE] Kod wysłany do klienta!");
+                    System.out.println("📥 [JMS Consumer] Odebrano: " + text);
+
+                    Thread.sleep(2000);
+
+                    System.out.println("🚀 [SMS SERVICE] Kod wysłany do klienta (z zewnętrznego brokera)!");
 
                 } catch (JMSException | InterruptedException e) {
                     e.printStackTrace();
@@ -76,7 +80,7 @@ public class JmsService {
         try {
             if (session != null) session.close();
             if (connection != null) connection.close();
-            if (broker != null) broker.stop();
+            System.out.println("🛑 [JMS] Rozłączono z brokerem.");
         } catch (Exception e) {
             e.printStackTrace();
         }
